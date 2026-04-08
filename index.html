@@ -1,0 +1,635 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CRM Cleanup Tool</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #0f1117; color: #e2e8f0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; min-height: 100vh; }
+
+  .container { max-width: 1200px; margin: 0 auto; padding: 32px 24px; }
+
+  h1 { font-size: 1.5rem; font-weight: 700; color: #f8fafc; margin-bottom: 4px; }
+  .subtitle { color: #64748b; font-size: 0.875rem; margin-bottom: 24px; }
+
+  /* Settings bar */
+  .settings-bar { background: #1e2130; border: 1px solid #2d3348; border-radius: 10px; padding: 16px 20px; margin-bottom: 20px; }
+  .settings-bar h2 { font-size: 0.85rem; color: #94a3b8; text-transform: uppercase; letter-spacing: .04em; margin-bottom: 12px; }
+  .settings-row { display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; }
+  .field { display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 200px; }
+  .field label { font-size: 0.75rem; color: #64748b; text-transform: uppercase; letter-spacing: .04em; }
+  .field input { background: #0f1117; border: 1px solid #2d3348; border-radius: 6px; padding: 8px 12px; color: #e2e8f0; font-size: 0.875rem; outline: none; }
+  .field input:focus { border-color: #6366f1; }
+  .field input::placeholder { color: #475569; }
+  #btn-save { padding: 8px 20px; background: #6366f1; color: #fff; border: none; border-radius: 6px; font-size: 0.875rem; font-weight: 600; cursor: pointer; white-space: nowrap; }
+  #btn-save:hover { opacity: .85; }
+  .config-status { display: flex; align-items: center; gap: 6px; font-size: 0.8rem; color: #64748b; margin-top: 10px; }
+  .config-dot { width: 8px; height: 8px; border-radius: 50%; }
+  .config-dot.connected { background: #22c55e; }
+  .config-dot.disconnected { background: #475569; }
+  .config-dot.error { background: #ef4444; }
+
+  /* Tabs */
+  .tabs { display: flex; gap: 0; margin-bottom: 20px; border-bottom: 1px solid #2d3348; }
+  .tab { padding: 10px 24px; font-size: 0.9rem; font-weight: 600; color: #64748b; cursor: pointer; border-bottom: 2px solid transparent; transition: all .15s; }
+  .tab:hover { color: #94a3b8; }
+  .tab.active { color: #6366f1; border-bottom-color: #6366f1; }
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+
+  /* Status bar */
+  .status-bar { display: flex; align-items: center; gap: 10px; background: #1e2130; border: 1px solid #2d3348; border-radius: 10px; padding: 14px 18px; margin-bottom: 20px; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+  .dot.idle    { background: #475569; }
+  .dot.working { background: #f59e0b; animation: pulse 1s infinite; }
+  .dot.done    { background: #22c55e; }
+  .dot.stopped { background: #f97316; }
+  .dot.error   { background: #ef4444; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+  .status-msg { font-size: 0.9rem; color: #cbd5e1; }
+
+  /* Progress bar */
+  .progress-wrap { background: #1e2130; border: 1px solid #2d3348; border-radius: 10px; padding: 14px 18px; margin-bottom: 20px; display: none; }
+  .progress-label { font-size: 0.8rem; color: #94a3b8; margin-bottom: 8px; display: flex; justify-content: space-between; }
+  .progress-track { background: #0f1117; border-radius: 99px; height: 8px; overflow: hidden; }
+  .progress-fill  { height: 100%; background: linear-gradient(90deg,#6366f1,#8b5cf6); border-radius: 99px; transition: width .3s ease; }
+
+  /* Buttons */
+  .btn-row { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 24px; }
+  button { padding: 9px 20px; border: none; border-radius: 8px; font-size: 0.875rem; font-weight: 600; cursor: pointer; transition: opacity .15s; }
+  button:disabled { opacity: .35; cursor: not-allowed; }
+  button:hover:not(:disabled) { opacity: .85; }
+  .btn-green  { background: #22c55e; color: #fff; }
+  .btn-yellow { background: #f59e0b; color: #000; }
+  .btn-blue   { background: #3b82f6; color: #fff; }
+  .btn-gray   { background: #475569; color: #fff; }
+  .btn-purple { background: #6366f1; color: #fff; }
+  .btn-red    { background: #ef4444; color: #fff; }
+
+  /* Stats */
+  .stats { display: grid; grid-template-columns: repeat(3,1fr); gap: 14px; margin-bottom: 24px; }
+  .stat-card { background: #1e2130; border: 1px solid #2d3348; border-radius: 10px; padding: 16px 20px; }
+  .stat-label { font-size: 0.75rem; color: #64748b; text-transform: uppercase; letter-spacing: .04em; margin-bottom: 6px; }
+  .stat-value { font-size: 1.6rem; font-weight: 700; color: #f1f5f9; }
+
+  /* Error box */
+  .error-box { background: #1c1209; border: 1px solid #92400e; border-radius: 10px; padding: 14px 18px; margin-bottom: 20px; display: none; }
+  .error-box h3 { color: #f97316; font-size: 0.85rem; margin-bottom: 8px; }
+  .error-box ul { list-style: none; }
+  .error-box li { font-size: 0.8rem; color: #fed7aa; margin-bottom: 4px; font-family: monospace; }
+
+  .scan-error { background: #1c0909; border: 1px solid #7f1d1d; border-radius: 10px; padding: 14px 18px; margin-bottom: 20px; color: #fca5a5; font-size: 0.85rem; display: none; }
+
+  /* Table */
+  .table-wrap { background: #1e2130; border: 1px solid #2d3348; border-radius: 10px; overflow: hidden; }
+  .table-header { padding: 14px 18px; border-bottom: 1px solid #2d3348; display: flex; align-items: center; justify-content: space-between; }
+  .table-header h2 { font-size: 0.95rem; color: #94a3b8; font-weight: 600; }
+  .select-all-wrap { display: flex; align-items: center; gap: 8px; font-size: 0.8rem; color: #64748b; }
+  .select-all-wrap input { accent-color: #6366f1; cursor: pointer; }
+  table { width: 100%; border-collapse: collapse; }
+  th { background: #161926; color: #64748b; font-size: 0.75rem; text-transform: uppercase; letter-spacing: .04em; padding: 10px 16px; text-align: left; }
+  td { padding: 11px 16px; font-size: 0.875rem; border-top: 1px solid #1e2130; color: #cbd5e1; }
+  tr:hover td { background: #1a1f30; }
+  .arrow { color: #6366f1; font-weight: 700; }
+  .name-old { color: #94a3b8; }
+  .name-new { color: #86efac; font-weight: 500; }
+  .no-data { padding: 40px; text-align: center; color: #475569; font-size: 0.9rem; }
+  .cb { accent-color: #6366f1; cursor: pointer; }
+
+  /* Dupe groups */
+  .dupe-group { background: #1e2130; border: 1px solid #2d3348; border-radius: 10px; margin-bottom: 14px; overflow: hidden; }
+  .dupe-group-header { padding: 14px 18px; border-bottom: 1px solid #2d3348; display: flex; align-items: center; justify-content: space-between; }
+  .dupe-group-header h3 { font-size: 0.9rem; color: #e2e8f0; font-weight: 600; }
+  .score-badge { background: #6366f1; color: #fff; font-size: 0.7rem; font-weight: 700; padding: 3px 10px; border-radius: 99px; }
+  .score-badge.high { background: #ef4444; }
+  .score-badge.medium { background: #f59e0b; color: #000; }
+  .dupe-reasons { padding: 8px 18px; font-size: 0.8rem; color: #94a3b8; border-bottom: 1px solid #2d3348; }
+  .dupe-reasons span { background: #0f1117; padding: 2px 8px; border-radius: 4px; margin-right: 6px; display: inline-block; margin-bottom: 4px; }
+  .dupe-account { padding: 12px 18px; display: flex; align-items: center; gap: 12px; border-top: 1px solid #161926; }
+  .dupe-account:first-child { border-top: none; }
+  .dupe-account.master { background: #0f1a0f; border-left: 3px solid #22c55e; }
+  .dupe-account .radio-wrap { flex-shrink: 0; }
+  .dupe-account .radio-wrap input { accent-color: #22c55e; cursor: pointer; }
+  .dupe-account .acc-name { font-weight: 500; flex: 1; }
+  .dupe-account .acc-details { font-size: 0.8rem; color: #64748b; }
+  .master-label { font-size: 0.7rem; background: #22c55e; color: #000; padding: 2px 8px; border-radius: 4px; font-weight: 700; }
+  .dupe-label { font-size: 0.7rem; background: #ef4444; color: #fff; padding: 2px 8px; border-radius: 4px; font-weight: 600; }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>CRM Cleanup Tool</h1>
+  <p class="subtitle">Clean account names and deduplicate Salesforce accounts via the Tiga API.</p>
+
+  <!-- Settings -->
+  <div class="settings-bar">
+    <h2>Connection Settings</h2>
+    <div class="settings-row">
+      <div class="field">
+        <label>Tiga API Key</label>
+        <input type="password" id="tiga-key" placeholder="Enter your Tiga API key">
+      </div>
+      <div class="field">
+        <label>Tiga Base URL</label>
+        <input type="text" id="tiga-url" placeholder="https://app.tigalabs.com">
+      </div>
+      <button id="btn-save" onclick="saveConfig()">Connect</button>
+    </div>
+    <div class="config-status">
+      <div class="config-dot disconnected" id="config-dot"></div>
+      <span id="config-msg">Not connected</span>
+    </div>
+  </div>
+
+  <!-- Tabs -->
+  <div class="tabs">
+    <div class="tab active" onclick="switchTab('names')">Name Cleaning</div>
+    <div class="tab" onclick="switchTab('dupes')">Deduplication</div>
+  </div>
+
+  <!-- Name Cleaning Tab -->
+  <div class="tab-content active" id="tab-names">
+    <div class="status-bar">
+      <div class="dot idle" id="names-dot"></div>
+      <span class="status-msg" id="names-status-msg">Ready to scan.</span>
+    </div>
+
+    <div class="progress-wrap" id="names-progress-wrap">
+      <div class="progress-label">
+        <span id="names-progress-text">Processing...</span>
+        <span id="names-progress-pct">0%</span>
+      </div>
+      <div class="progress-track"><div class="progress-fill" id="names-progress-fill" style="width:0%"></div></div>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn-green" id="btn-scan-names" onclick="scanNames()" disabled>Scan Accounts</button>
+      <button class="btn-yellow" id="btn-stop-names" onclick="stop()" style="display:none">Stop</button>
+      <button class="btn-blue" id="btn-resume-names" onclick="resumeNames()" style="display:none">Resume</button>
+      <button class="btn-gray" id="btn-restart-names" onclick="restartNames()" style="display:none">Restart</button>
+      <button class="btn-purple" id="btn-apply-names" onclick="applyNames()" disabled>Apply Selected</button>
+      <button class="btn-red" id="btn-undo-names" onclick="undoNames()" disabled>Undo</button>
+    </div>
+
+    <div class="stats">
+      <div class="stat-card"><div class="stat-label">Total Accounts</div><div class="stat-value" id="names-stat-total">&mdash;</div></div>
+      <div class="stat-card"><div class="stat-label">Names to Change</div><div class="stat-value" id="names-stat-changes">&mdash;</div></div>
+      <div class="stat-card"><div class="stat-label">Applied</div><div class="stat-value" id="names-stat-applied">&mdash;</div></div>
+    </div>
+
+    <div class="scan-error" id="names-scan-error"></div>
+    <div class="error-box" id="names-error-box">
+      <h3>Apply Errors</h3>
+      <ul id="names-error-list"></ul>
+    </div>
+
+    <div class="table-wrap">
+      <div class="table-header">
+        <h2>Account Name Changes</h2>
+        <div class="select-all-wrap">
+          <input type="checkbox" id="select-all" checked onchange="toggleAll(this.checked)"> Select All
+        </div>
+      </div>
+      <div id="names-table-body">
+        <div class="no-data">Connect and run a scan to see suggested name changes.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Deduplication Tab -->
+  <div class="tab-content" id="tab-dupes">
+    <div class="status-bar">
+      <div class="dot idle" id="dupes-dot"></div>
+      <span class="status-msg" id="dupes-status-msg">Ready to scan for duplicates.</span>
+    </div>
+
+    <div class="progress-wrap" id="dupes-progress-wrap">
+      <div class="progress-label">
+        <span id="dupes-progress-text">Processing...</span>
+        <span id="dupes-progress-pct">0%</span>
+      </div>
+      <div class="progress-track"><div class="progress-fill" id="dupes-progress-fill" style="width:0%"></div></div>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn-green" id="btn-scan-dupes" onclick="scanDupes()" disabled>Scan for Duplicates</button>
+      <button class="btn-yellow" id="btn-stop-dupes" onclick="stop()" style="display:none">Stop</button>
+      <button class="btn-purple" id="btn-apply-dupes" onclick="applyDupes()" disabled>Mark Duplicates</button>
+    </div>
+
+    <div class="stats">
+      <div class="stat-card"><div class="stat-label">Total Accounts</div><div class="stat-value" id="dupes-stat-total">&mdash;</div></div>
+      <div class="stat-card"><div class="stat-label">Duplicate Groups</div><div class="stat-value" id="dupes-stat-groups">&mdash;</div></div>
+      <div class="stat-card"><div class="stat-label">Records to Mark</div><div class="stat-value" id="dupes-stat-mark">&mdash;</div></div>
+    </div>
+
+    <div class="scan-error" id="dupes-scan-error"></div>
+    <div class="error-box" id="dupes-error-box">
+      <h3>Apply Errors</h3>
+      <ul id="dupes-error-list"></ul>
+    </div>
+
+    <div id="dupes-groups-container">
+      <div class="no-data" style="background:#1e2130;border:1px solid #2d3348;border-radius:10px;padding:40px;text-align:center;color:#475569">
+        Connect and scan to find duplicate accounts.
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+let pollInterval = null;
+let lastState = null;
+let activeTab = 'names';
+
+// --- Settings ---
+function loadSettings() {
+  const key = localStorage.getItem('tiga_key') || '';
+  const url = localStorage.getItem('tiga_url') || '';
+  document.getElementById('tiga-key').value = key;
+  document.getElementById('tiga-url').value = url;
+}
+
+async function saveConfig() {
+  const key = document.getElementById('tiga-key').value.trim();
+  const url = document.getElementById('tiga-url').value.trim();
+
+  if (!key) { alert('Please enter your Tiga API key'); return; }
+
+  localStorage.setItem('tiga_key', key);
+  localStorage.setItem('tiga_url', url);
+
+  const dot = document.getElementById('config-dot');
+  const msg = document.getElementById('config-msg');
+  dot.className = 'config-dot';
+  msg.textContent = 'Connecting...';
+
+  try {
+    const r = await fetch('/api/config', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ tiga_key: key, tiga_base_url: url })
+    });
+    const data = await r.json();
+    if (data.status === 'ok') {
+      dot.className = 'config-dot connected';
+      msg.textContent = 'Connected to Salesforce' + (data.instance_url ? ' (' + data.instance_url + ')' : '');
+      enableButtons();
+    } else {
+      dot.className = 'config-dot error';
+      msg.textContent = data.message || 'Connection failed';
+    }
+  } catch(e) {
+    dot.className = 'config-dot error';
+    msg.textContent = 'Connection error: ' + e.message;
+  }
+}
+
+function enableButtons() {
+  document.getElementById('btn-scan-names').disabled = false;
+  document.getElementById('btn-scan-dupes').disabled = false;
+}
+
+// --- Auto-connect on load if settings exist ---
+async function autoConnect() {
+  loadSettings();
+  const key = document.getElementById('tiga-key').value.trim();
+  if (key) {
+    await saveConfig();
+  }
+}
+
+// --- Tabs ---
+function switchTab(tab) {
+  activeTab = tab;
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+  if (tab === 'names') {
+    document.querySelectorAll('.tab')[0].classList.add('active');
+    document.getElementById('tab-names').classList.add('active');
+  } else {
+    document.querySelectorAll('.tab')[1].classList.add('active');
+    document.getElementById('tab-dupes').classList.add('active');
+  }
+}
+
+// --- Polling ---
+function startPolling() {
+  if (pollInterval) return;
+  pollInterval = setInterval(fetchStatus, 1000);
+}
+
+function stopPolling() {
+  if (pollInterval) { clearInterval(pollInterval); pollInterval = null; }
+}
+
+async function fetchStatus() {
+  try {
+    const r = await fetch('/api/status');
+    const s = await r.json();
+    render(s);
+    const busy = isBusy(s.status);
+    if (!busy) stopPolling();
+  } catch(e) { console.error(e); }
+}
+
+function isBusy(status) {
+  return ['scanning','applying','undoing','scanning_dupes','applying_dupes'].includes(status);
+}
+
+function isNameStatus(status) {
+  return ['idle','scanning','scanned','applying','applied','undoing','stopped'].includes(status);
+}
+
+function isDupeStatus(status) {
+  return ['scanning_dupes','scanned_dupes','applying_dupes','applied_dupes'].includes(status);
+}
+
+// --- Render ---
+function render(s) {
+  lastState = s;
+  renderNames(s);
+  renderDupes(s);
+
+  // Config status
+  if (s.config_set) {
+    document.getElementById('config-dot').className = 'config-dot connected';
+    enableButtons();
+  }
+}
+
+function dotClass(status) {
+  if (isBusy(status)) return 'working';
+  if (['scanned','applied','scanned_dupes','applied_dupes'].includes(status)) return 'done';
+  if (status === 'stopped') return 'stopped';
+  return 'idle';
+}
+
+function renderNames(s) {
+  const dot = document.getElementById('names-dot');
+  dot.className = 'dot ' + dotClass(s.status);
+  document.getElementById('names-status-msg').textContent = s.message || s.status;
+
+  // Progress
+  const busy = s.status === 'scanning' || s.status === 'applying' || s.status === 'undoing';
+  const pw = document.getElementById('names-progress-wrap');
+  if (busy && s.total_records > 0) {
+    pw.style.display = 'block';
+    const pct = Math.round((s.processed / s.total_records) * 100);
+    document.getElementById('names-progress-fill').style.width = pct + '%';
+    document.getElementById('names-progress-pct').textContent = pct + '%';
+    document.getElementById('names-progress-text').textContent = s.processed + ' / ' + s.total_records + ' records';
+  } else if (!busy) {
+    pw.style.display = 'none';
+  }
+
+  // Stats
+  document.getElementById('names-stat-total').textContent = s.total_records > 0 ? s.total_records : '\u2014';
+  document.getElementById('names-stat-changes').textContent = s.changes ? s.changes.length : '\u2014';
+  document.getElementById('names-stat-applied').textContent = s.applied ? s.applied.length : '\u2014';
+
+  // Buttons
+  document.getElementById('btn-scan-names').style.display = busy ? 'none' : '';
+  document.getElementById('btn-stop-names').style.display = busy ? '' : 'none';
+  document.getElementById('btn-resume-names').style.display = s.status === 'stopped' && s.last_op && s.last_op.includes('name') ? '' : 'none';
+  document.getElementById('btn-restart-names').style.display = s.status === 'stopped' ? '' : 'none';
+  document.getElementById('btn-apply-names').disabled =
+    !(s.status === 'scanned' || s.status === 'stopped') ||
+    !s.changes || s.changes.filter(c => c.selected).length === 0;
+  document.getElementById('btn-undo-names').disabled = s.status !== 'applied';
+
+  // Errors
+  const se = document.getElementById('names-scan-error');
+  if (s.scan_error && isNameStatus(s.status)) { se.textContent = 'Error: ' + s.scan_error; se.style.display = 'block'; }
+  else { se.style.display = 'none'; }
+
+  const eb = document.getElementById('names-error-box');
+  if (s.apply_errors && s.apply_errors.length > 0 && isNameStatus(s.status)) {
+    eb.style.display = 'block';
+    const ul = document.getElementById('names-error-list');
+    ul.innerHTML = '';
+    s.apply_errors.forEach(e => { const li = document.createElement('li'); li.textContent = e; ul.appendChild(li); });
+  } else { eb.style.display = 'none'; }
+
+  // Table
+  renderNamesTable(s.changes || []);
+}
+
+function renderNamesTable(changes) {
+  const body = document.getElementById('names-table-body');
+  if (!changes || changes.length === 0) {
+    body.innerHTML = '<div class="no-data">No name changes found yet.</div>';
+    return;
+  }
+  let html = '<table><thead><tr><th style="width:40px"></th><th>Original Name</th><th style="width:40px"></th><th>Cleaned Name</th><th>SF ID</th></tr></thead><tbody>';
+  changes.forEach(ch => {
+    const chk = ch.selected ? 'checked' : '';
+    html += '<tr>' +
+      '<td><input class="cb" type="checkbox" ' + chk + ' onchange="toggleOne(\'' + esc(ch.id) + '\', this.checked)"></td>' +
+      '<td class="name-old">' + esc(ch.old_name) + '</td>' +
+      '<td class="arrow">\u2192</td>' +
+      '<td class="name-new">' + esc(ch.new_name) + '</td>' +
+      '<td style="color:#475569;font-size:.8rem;font-family:monospace">' + esc(ch.id) + '</td>' +
+      '</tr>';
+  });
+  html += '</tbody></table>';
+  body.innerHTML = html;
+
+  const allSelected = changes.every(c => c.selected);
+  const someSelected = changes.some(c => c.selected);
+  const sa = document.getElementById('select-all');
+  sa.checked = allSelected;
+  sa.indeterminate = !allSelected && someSelected;
+}
+
+function renderDupes(s) {
+  const dot = document.getElementById('dupes-dot');
+  const dupeStatus = isDupeStatus(s.status) ? s.status : (s.status === 'stopped' ? 'stopped' : 'idle');
+  dot.className = 'dot ' + dotClass(dupeStatus);
+
+  if (isDupeStatus(s.status) || (s.dupe_groups && s.dupe_groups.length > 0)) {
+    document.getElementById('dupes-status-msg').textContent = s.message || s.status;
+  }
+
+  // Progress
+  const busy = s.status === 'scanning_dupes' || s.status === 'applying_dupes';
+  const pw = document.getElementById('dupes-progress-wrap');
+  if (busy && s.total_records > 0) {
+    pw.style.display = 'block';
+    const pct = Math.round((s.processed / s.total_records) * 100);
+    document.getElementById('dupes-progress-fill').style.width = pct + '%';
+    document.getElementById('dupes-progress-pct').textContent = pct + '%';
+    document.getElementById('dupes-progress-text').textContent = s.processed + ' / ' + s.total_records;
+  } else if (!busy) {
+    pw.style.display = 'none';
+  }
+
+  // Stats
+  const groups = s.dupe_groups || [];
+  let totalToMark = 0;
+  groups.forEach(g => { totalToMark += g.accounts.length - 1; });
+
+  document.getElementById('dupes-stat-total').textContent = s.total_records > 0 ? s.total_records : '\u2014';
+  document.getElementById('dupes-stat-groups').textContent = groups.length > 0 ? groups.length : '\u2014';
+  document.getElementById('dupes-stat-mark').textContent = totalToMark > 0 ? totalToMark : '\u2014';
+
+  // Buttons
+  document.getElementById('btn-scan-dupes').style.display = busy ? 'none' : '';
+  document.getElementById('btn-stop-dupes').style.display = busy ? '' : 'none';
+  document.getElementById('btn-apply-dupes').disabled = s.status !== 'scanned_dupes';
+
+  // Errors
+  const se = document.getElementById('dupes-scan-error');
+  if (s.scan_error && isDupeStatus(s.status)) { se.textContent = 'Error: ' + s.scan_error; se.style.display = 'block'; }
+  else { se.style.display = 'none'; }
+
+  const eb = document.getElementById('dupes-error-box');
+  if (s.apply_errors && s.apply_errors.length > 0 && isDupeStatus(s.status)) {
+    eb.style.display = 'block';
+    const ul = document.getElementById('dupes-error-list');
+    ul.innerHTML = '';
+    s.apply_errors.forEach(e => { const li = document.createElement('li'); li.textContent = e; ul.appendChild(li); });
+  } else { eb.style.display = 'none'; }
+
+  // Dupe groups
+  renderDupeGroups(groups, s.status);
+}
+
+function renderDupeGroups(groups, status) {
+  const container = document.getElementById('dupes-groups-container');
+  if (!groups || groups.length === 0) {
+    if (status === 'applied_dupes') {
+      container.innerHTML = '<div class="no-data" style="background:#1e2130;border:1px solid #2d3348;border-radius:10px;padding:40px;text-align:center;color:#22c55e">All duplicates have been marked.</div>';
+    } else {
+      container.innerHTML = '<div class="no-data" style="background:#1e2130;border:1px solid #2d3348;border-radius:10px;padding:40px;text-align:center;color:#475569">No duplicate groups found.</div>';
+    }
+    return;
+  }
+
+  let html = '';
+  groups.forEach((g, gi) => {
+    const scoreClass = g.score >= 65 ? 'high' : g.score >= 40 ? 'medium' : '';
+    html += '<div class="dupe-group">';
+    html += '<div class="dupe-group-header"><h3>Group ' + (gi + 1) + ' (' + g.accounts.length + ' accounts)</h3><span class="score-badge ' + scoreClass + '">Score: ' + g.score + '</span></div>';
+
+    if (g.match_reasons && g.match_reasons.length > 0) {
+      html += '<div class="dupe-reasons">';
+      g.match_reasons.forEach(r => { html += '<span>' + esc(r) + '</span>'; });
+      html += '</div>';
+    }
+
+    g.accounts.forEach(acc => {
+      const isMaster = acc.Id === g.master_id;
+      html += '<div class="dupe-account' + (isMaster ? ' master' : '') + '">';
+      html += '<div class="radio-wrap"><input type="radio" name="master-' + gi + '" ' + (isMaster ? 'checked' : '') + ' onchange="setMaster(' + gi + ',\'' + esc(acc.Id) + '\')"></div>';
+      html += '<div class="acc-name">' + esc(acc.Name) + ' ' + (isMaster ? '<span class="master-label">KEEP</span>' : '<span class="dupe-label">DUPLICATE</span>') + '</div>';
+      html += '<div class="acc-details">';
+      if (acc.Website) html += acc.Website + ' &middot; ';
+      if (acc.Phone) html += acc.Phone + ' &middot; ';
+      if (acc.BillingCity) html += acc.BillingCity;
+      if (acc.BillingState) html += ', ' + acc.BillingState;
+      html += '</div>';
+      html += '</div>';
+    });
+
+    html += '</div>';
+  });
+
+  container.innerHTML = html;
+}
+
+// --- Actions ---
+async function scanNames() {
+  await fetch('/api/scan-names', {method:'POST'});
+  startPolling(); fetchStatus();
+}
+
+async function applyNames() {
+  await fetch('/api/apply-names', {method:'POST'});
+  startPolling(); fetchStatus();
+}
+
+async function undoNames() {
+  await fetch('/api/undo-names', {method:'POST'});
+  startPolling(); fetchStatus();
+}
+
+async function resumeNames() {
+  await fetch('/api/scan-names?resume=true', {method:'POST'});
+  startPolling(); fetchStatus();
+}
+
+async function restartNames() {
+  await fetch('/api/reset', {method:'POST'});
+  setTimeout(() => { scanNames(); }, 300);
+}
+
+async function scanDupes() {
+  await fetch('/api/scan-dupes', {method:'POST'});
+  startPolling(); fetchStatus();
+}
+
+async function applyDupes() {
+  await fetch('/api/apply-dupes', {method:'POST'});
+  startPolling(); fetchStatus();
+}
+
+async function stop() {
+  await fetch('/api/stop', {method:'POST'});
+}
+
+async function toggleOne(id, selected) {
+  await fetch('/api/toggle', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({id, selected})
+  });
+  if (lastState && lastState.changes) {
+    lastState.changes = lastState.changes.map(c => c.id === id ? {...c, selected} : c);
+    const s = lastState;
+    document.getElementById('btn-apply-names').disabled =
+      !(s.status === 'scanned' || s.status === 'stopped') ||
+      s.changes.filter(c => c.selected).length === 0;
+    const allSel = s.changes.every(c => c.selected);
+    const someSel = s.changes.some(c => c.selected);
+    const sa = document.getElementById('select-all');
+    sa.checked = allSel;
+    sa.indeterminate = !allSel && someSel;
+  }
+}
+
+async function toggleAll(selected) {
+  if (!lastState || !lastState.changes) return;
+  await Promise.all(lastState.changes.map(c => fetch('/api/toggle', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({id: c.id, selected})
+  })));
+  if (lastState.changes) {
+    lastState.changes = lastState.changes.map(c => ({...c, selected}));
+    renderNamesTable(lastState.changes);
+    document.getElementById('btn-apply-names').disabled =
+      !(lastState.status === 'scanned' || lastState.status === 'stopped') || !selected;
+  }
+}
+
+async function setMaster(groupIndex, masterId) {
+  await fetch('/api/set-master', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({group_index: groupIndex, master_id: masterId})
+  });
+  fetchStatus();
+}
+
+function esc(s) {
+  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+// --- Init ---
+autoConnect();
+fetchStatus();
+</script>
+</body>
+</html>
